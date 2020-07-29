@@ -10,25 +10,58 @@ class JokeList extends Component {
   };
   constructor(props) {
     super(props);
-    this.state = { jokes: [] };
+    this.state = {
+      jokes: JSON.parse(window.localStorage.getItem("jokes") || "[]"),
+      loading: false,
+    };
+    this.seenJokes = new Set(this.state.jokes.map((j) => j.text));
+    this.handleClick = this.handleClick.bind(this);
   }
-  async componentDidMount() {
-    let jokes = [];
-    while (jokes.length < this.props.numJokesToGet) {
-      let response = await axios.get("https://icanhazdadjoke.com/", {
-        headers: { Accept: "application/json" },
-      });
-      jokes.push({ id: uuidv4(), text: response.data.joke, votes: 0 });
+  componentDidMount() {
+    if (this.state.jokes.length === 0) this.getJokes();
+  }
+  async getJokes() {
+    try {
+      let jokes = [];
+      while (jokes.length < this.props.numJokesToGet) {
+        let res = await axios.get("https://icanhazdadjoke.com/", {
+          headers: { Accept: "application/json" },
+        });
+        let newJoke = res.data.joke;
+        if (!this.seenJokes.has(newJoke)) {
+          jokes.push({ id: uuidv4(), text: newJoke, votes: 0 });
+        } else {
+          console.log("FOUND A DUPLICATE!");
+          console.log(newJoke);
+        }
+      }
+      this.setState(
+        (st) => ({
+          loading: false,
+          jokes: [...st.jokes, ...jokes],
+        }),
+        () =>
+          window.localStorage.setItem("jokes", JSON.stringify(this.state.jokes))
+      );
+    } catch (e) {
+      alert(e);
+      this.setState({ loading: false });
     }
-    this.setState({ jokes: jokes });
   }
 
   handleVote(id, delta) {
-    this.setState((st) => ({
-      jokes: st.jokes.map((j) =>
-        j.id === id ? { ...j, votes: j.votes + delta } : j
-      ),
-    }));
+    this.setState(
+      (st) => ({
+        jokes: st.jokes.map((j) =>
+          j.id === id ? { ...j, votes: j.votes + delta } : j
+        ),
+      }),
+      () =>
+        window.localStorage.setItem("jokes", JSON.stringify(this.state.jokes))
+    );
+  }
+  handleClick() {
+    this.getJokes();
   }
 
   render() {
@@ -42,7 +75,9 @@ class JokeList extends Component {
             src="https://assets.dryicons.com/uploads/icon/svg/8927/0eb14c71-38f2-433a-bfc8-23d9c99b3647.svg"
             alt="smile"
           />
-          <button className="JokeList-getmore">New Jokes</button>
+          <button className="JokeList-getmore" onClick={this.handleClick}>
+            New Jokes
+          </button>
         </div>
 
         <div className="JokeList-jokes">
